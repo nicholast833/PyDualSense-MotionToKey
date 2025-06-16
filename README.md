@@ -5,7 +5,7 @@ This project is a Python-based application that allows you to capture and map mo
 ## Features
 
 * **Real-time Data Display**: View live gyroscope and accelerometer data from your DualSense controller.
-* **Position Saving**: Record and save specific controller orientations as "positions."
+* **Position Saving**: Record and save specific controller orientations as "positions".
 * **Motion Sequences**: Chain saved positions together to create complex motion gestures.
 * **Action Binding**: Bind completed motion sequences to keyboard keys or mouse clicks.
 * **Configuration Management**: Export and import your saved positions and motion sequences to a `.cfg` file.
@@ -21,8 +21,8 @@ This project is a Python-based application that allows you to capture and map mo
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/your-repository-name.git](https://github.com/your-username/your-repository-name.git)
-    cd your-repository-name
+    git clone [https://github.com/nicholast833/PyDualSense-MotionToKey.git](https://github.com/nicholast833/PyDualSense-MotionToKey.git)
+    cd PyDualSense-MotionToKey
     ```
 
 2.  **Install the required Python libraries:**
@@ -45,7 +45,7 @@ This project is a Python-based application that allows you to capture and map mo
 
 * **Saving a Position**: Hold your controller in the desired position and click the "Save Current Position (Multi-Point)" button.
 * **Creating a Motion Sequence**:
-    1.  Go to the "Motions" tab and click "Create New Motion Sequence."
+    1.  Go to the "Motions" tab and click "Create New Motion Sequence".
     2.  Give the sequence a name.
     3.  Click the "Edit Positions" button to add saved positions to the sequence.
 * **Binding an Action**: Select a motion sequence and enter a key (e.g., `w`, `space`, `ctrl`) or mouse click (`left_click`, `right_click`) in the "Action Binding" field.
