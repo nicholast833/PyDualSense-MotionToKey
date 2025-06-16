@@ -6,8 +6,8 @@ import global_state  # For accessing global variables like saved_positions, sele
 from models import SavedPosition  # Import SavedPosition model
 import threading  # For threading.Thread
 import controller_interface  # To call _record_position_points (e.g., _finalize_recording uses it implicitly)
-from gui_elements import create_numeric_slider_control, update_highlight_on_gui  # CORRECTED: Import functions directly
-
+from gui_elements import create_numeric_slider_control, update_highlight_on_gui 
+from motion_sequence_manager_gui import update_motion_sequences_display
 
 
 # --- Position Display and Selection ---
