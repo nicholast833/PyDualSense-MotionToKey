@@ -31,7 +31,7 @@ This project is a Python-based application that allows you to capture and map mo
 
     ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    venv\Scripts\activate
     pip install pynput pydualsense
     ```
 
