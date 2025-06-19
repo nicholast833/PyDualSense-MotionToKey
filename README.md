@@ -22,7 +22,7 @@ This project is a Python-based application that allows you to capture and map mo
 1.  **Clone the repository:**
 
     ```bash
-    git clone [https://github.com/nicholast833/PyDualSense-MotionToKey.git](https://github.com/nicholast833/PyDualSense-MotionToKey.git)
+    git clone https://github.com/nicholast833/PyDualSense-MotionToKey.git
     cd PyDualSense-MotionToKey
     ```
 
