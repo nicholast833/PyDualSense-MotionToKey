@@ -32,16 +32,12 @@ This project is a Python-based application that allows you to capture and map mo
     ```bash
     python -m venv venv
     source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-    pip install -r requirements.txt
-    ```
-    Alternatively, you can install the required libraries directly:
-    ```bash
     pip install pynput pydualsense
     ```
 
 ## How to Run
 
-1.  **Connect your DualSense Controller** to your computer via Bluetooth.
+1.  **Connect your DualSense Controller** to your computer via Bluetooth or cable.
 2.  **Run the application:**
 
     ```bash
