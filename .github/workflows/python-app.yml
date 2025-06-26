@@ -1,7 +1,6 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# In .github/workflows/python-app.yml
 
-name: Python application
+name: Python application test and build
 
 on:
   push:
@@ -13,10 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
@@ -26,14 +23,48 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install flake8 pytest pynput pydualsense
     - name: Lint with flake8
       run: |
-        # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
         pytest
+
+  build-windows:
+    # This job only runs on a push that creates a new tag (e.g., v1.0, v1.1)
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write # Needed to create a release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pynput pydualsense pyinstaller
+
+      - name: Download hidapi.dll
+        run: |
+          # Downloads the hidapi-win.zip and extracts the 64-bit DLL
+          curl -L -o hidapi.zip https://github.com/libusb/hidapi/releases/download/hidapi-0.14.0/hidapi-win.zip
+          7z x hidapi.zip
+          copy hidapi-win\x64\hidapi.dll .
+
+      - name: Build executable with PyInstaller
+        run: |
+          pyinstaller --noconsole --onefile --windowed --name "DualSenseMotionToKey" --add-binary "hidapi.dll;." main_app.py
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/DualSenseMotionToKey.exe
