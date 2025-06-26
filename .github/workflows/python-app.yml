@@ -1,12 +1,14 @@
-# In .github/workflows/python-app.yml
-
 name: Python application test and build
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - 'main'
 
 permissions:
   contents: read
@@ -15,27 +17,26 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.10"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest pynput pydualsense
-    - name: Lint with flake8
-      run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pynput pydualsense
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
   build-windows:
-    # This job only runs on a push that creates a new tag (e.g., v1.0, v1.1)
     if: startsWith(github.ref, 'refs/tags/')
     needs: test
     runs-on: windows-latest
     permissions:
-      contents: write # Needed to create a release
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,7 +53,6 @@ jobs:
 
       - name: Download hidapi.dll
         run: |
-          # Downloads the hidapi-win.zip and extracts the 64-bit DLL
           curl -L -o hidapi.zip https://github.com/libusb/hidapi/releases/download/hidapi-0.14.0/hidapi-win.zip
           7z x hidapi.zip
           copy hidapi-win\x64\hidapi.dll .
