@@ -1,0 +1,117 @@
+{
+    "ui_settings": {
+        "dimension_w_var": 1.6,
+        "dimension_h_var": 0.8,
+        "dimension_d_var": 0.4,
+        "camera_orbit_x_var": -165.0,
+        "camera_orbit_y_var": 0.0,
+        "camera_zoom_var": -6.0,
+        "camera_roll_var": 0.0,
+        "pause_sensor_updates_var": false,
+        "home_button_map_var": "",
+        "mapping_status_var": "",
+        "show_visualization_var": true,
+        "debug_mode_var": false,
+        "raw_gyro_var": "",
+        "raw_accel_var": "",
+        "verbose_logging_var": false,
+        "beta_gain_var": 0.35363636363636364,
+        "drift_correction_gain_var": 0.05,
+        "ref_x_var": "",
+        "ref_y_var": "",
+        "ref_z_var": "",
+        "hit_tolerance_var": 0.15,
+        "distance_offset_var": 0.5,
+        "show_ref_point_labels_var": true,
+        "edit_id_var": "ca0bd6",
+        "edit_x_var": "-0.00",
+        "edit_y_var": "-0.49",
+        "edit_z_var": "0.08",
+        "log_message_var": "",
+        "accelerometer_smoothing_var": 0.5,
+        "log_to_console_var": false,
+        "correct_drift_when_still_var": true,
+        "home_name_var": "Home",
+        "home_q_w_var": "0.750",
+        "home_q_x_var": "0.650",
+        "home_q_y_var": "0.000",
+        "home_q_z_var": "0.000",
+        "edit_point_group_var": "Testing",
+        "group_action_type_var": "Key Press",
+        "group_action_detail_var": "e",
+        "group_name_var": "Testing",
+        "play_action_sound_var": true,
+        "group_grace_period_var": 2.0,
+        "save_filename_var": "config.json",
+        "load_filename_var": "config.json"
+    },
+    "reference_points": [
+        {
+            "id": "ca0bd6",
+            "position": [
+                -0.00013715176514791808,
+                -0.4933774329536096,
+                0.08110912304728601
+            ],
+            "hit": true
+        },
+        {
+            "id": "d6776f",
+            "position": [
+                -0.012207302092741793,
+                -0.33007459753951185,
+                -0.3753688077541151
+            ],
+            "hit": false
+        },
+        {
+            "id": "9d2613",
+            "position": [
+                -0.0019469319979511894,
+                -0.09621878149793142,
+                -0.49065074701140393
+            ],
+            "hit": false
+        }
+    ],
+    "frame_states": {
+        "view": false,
+        "controller": true,
+        "groups": false,
+        "ref_points": false,
+        "edit": false,
+        "ref_settings": true,
+        "filter": false,
+        "camera": true,
+        "dim": true,
+        "debug": true,
+        "config": false
+    },
+    "home_position": {
+        "name": "Home",
+        "orientation": [
+            0.75,
+            0.65,
+            0.0,
+            0.0
+        ]
+    },
+    "reference_point_groups": {
+        "group_930fa6": {
+            "name": "Testing",
+            "point_ids": [
+                "d6776f",
+                "9d2613",
+                "ca0bd6"
+            ],
+            "hit_timestamps": {
+                "ca0bd6": 29029.453
+            },
+            "action": {
+                "type": "Key Press",
+                "detail": "e"
+            }
+        }
+    },
+    "action_sound_path": null
+}

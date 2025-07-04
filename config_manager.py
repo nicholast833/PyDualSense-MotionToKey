@@ -1,172 +1,144 @@
-# In config_manager.py
+import tkinter as tk
+from tkinter import ttk, messagebox
 import json
-import tkinter.filedialog
-import tkinter.messagebox
-import global_state
-from models import SavedPosition, MotionSequence, MotionSequenceStep
 import os
-from position_manager_gui import update_saved_positions_display, hide_edit_position_controls
-from motion_sequence_manager_gui import update_motion_sequences_display, hide_edit_motion_controls
+import traceback
+import global_state
 
 
-# --- Helper: Read Reps From File ---
-# Moved here temporarily from controller_interface, as needed by import.
-# Will be moved back to controller_interface when all references are cleaned up.
-def _read_reps_from_file(file_path):
-    if not file_path or not os.path.exists(file_path):
-        return 0
-    try:
-        with open(file_path, 'r') as f:
-            content = f.read().strip()
-            return int(content) if content.isdigit() else 0
-    except Exception as e:
-        print(f"Error reading rep count from file '{file_path}': {e}")
-        return 0
+def log_error(exc):
+    """Logs exceptions to a file for easier debugging."""
+    with open("error.log", "a") as f:
+        f.write(f"--- {traceback.format_exc()} ---\n")
+    print(f"An error occurred. Details have been logged to error.log")
 
 
-def _serialize_position(pos):
-    return {
-        'id': pos.id,
-        'name': pos.name,
-        'recorded_points': [[list(g), list(a)] for g, a in pos.recorded_points],
-        'padding_factor': pos.padding_factor,
-        'detection_axes': pos.detection_axes,
-        'custom_avg_gyro': list(pos.custom_avg_gyro) if pos.custom_avg_gyro is not None else None,
-        'custom_avg_accel': list(pos.custom_avg_accel) if pos.custom_avg_accel is not None else None
+def save_config(root, collapsible_frames, filepath=None):
+    """Saves the current application state to the specified filepath."""
+    if not filepath:
+        messagebox.showerror("Save Error", "No filename provided.")
+        return
+
+    if not filepath.lower().endswith('.json'):
+        filepath += '.json'
+
+    config_data = {
+        'ui_settings': {}, 'reference_points': [], 'frame_states': {},
+        'home_position': {}, 'reference_point_groups': {}, 'action_sound_path': None
     }
 
+    with global_state.controller_lock:
+        # FIX: Explicitly cast the 'hit' value to a standard bool for JSON serialization.
+        points_to_save = []
+        for p in global_state.reference_points:
+            point_copy = p.copy()
+            point_copy['hit'] = bool(p['hit'])
+            points_to_save.append(point_copy)
+        config_data['reference_points'] = points_to_save
 
-def _deserialize_position(data):
-    recorded_points = [(tuple(g), tuple(a)) for g, a in data['recorded_points']]
-    custom_avg_gyro = tuple(data['custom_avg_gyro']) if data.get('custom_avg_gyro') is not None else None
-    custom_avg_accel = tuple(data['custom_avg_accel']) if data.get('custom_avg_accel') is not None else None
-
-    return SavedPosition(recorded_points, data['name'], data['padding_factor'],
-                         data['detection_axes'], _id=data['id'],
-                         custom_avg_gyro=custom_avg_gyro, custom_avg_accel=custom_avg_accel)
-
-
-def _serialize_motion_sequence(seq):
-    serialized_steps = []
-    for step in seq.steps:
-        serialized_steps.append({
-            'position_id': step.position_id,
-            'gyro_directions': step.gyro_directions,
-            'accel_directions': step.accel_directions
-        })
-    return {
-        'name': seq.name,
-        'steps': serialized_steps,
-        'time_window_ms': seq.time_window_ms,
-        'repetition_count': seq.repetition_count,
-        'reset_grace_period_ms': seq.reset_grace_period_ms,
-        'action_binding': seq.action_binding,
-        'last_action_trigger_time': seq.last_action_trigger_time,
-        'export_reps_to_file': seq.export_reps_to_file,
-        'export_file_path': seq.export_file_path
-    }
-
-
-def _deserialize_motion_sequence(data, position_map):
-    deserialized_steps = []
-    if 'steps' in data:
-        steps_data = data['steps']
-        for step_data in steps_data:
-            deserialized_steps.append(MotionSequenceStep(
-                position_id=step_data['position_id'],
-                gyro_directions=step_data.get('gyro_directions', {'Pitch': 'any', 'Yaw': 'any', 'Roll': 'any'}),
-                accel_directions=step_data.get('accel_directions', {'X': 'any', 'Y': 'any', 'Z': 'any'})
-            ))
-    elif 'positions' in data:
-        position_ids = data['positions']
-        for pid in position_ids:
-            pos_obj = position_map.get(pid)
-            if pos_obj:
-                deserialized_steps.append(MotionSequenceStep(
-                    position_id=pos_obj.id,
-                    gyro_directions={'Pitch': 'any', 'Yaw': 'any', 'Roll': 'any'},
-                    accel_directions={'X': 'any', 'Y': 'any', 'Z': 'any'}
-                ))
-            else:
-                print(
-                    f"Warning: Position ID {pid} not found during motion sequence deserialization (from old config). Skipping step.")
-
-    repetition_count_from_config = data.get('repetition_count', 0)
-
-    seq = MotionSequence(data['name'], deserialized_steps, data['time_window_ms'],
-                         repetition_count=repetition_count_from_config,
-                         reset_grace_period_ms=data.get('reset_grace_period_ms', 0),
-                         action_binding=data.get('action_binding', None),
-                         last_action_trigger_time=data.get('last_action_trigger_time', None),
-                         export_reps_to_file=data.get('export_reps_to_file', False),
-                         export_file_path=data.get('export_file_path', None))
-
-    # NEW LOGIC: Read initial count from file if export is enabled for this sequence
-    if seq.export_reps_to_file and seq.export_file_path:
-        initial_file_count = _read_reps_from_file(seq.export_file_path)
-        seq.repetition_count = initial_file_count  # Overwrite with file content
-        print(f"DEBUG: Initializing '{seq.name}' rep count from file: {initial_file_count}")
-
-    return seq
-
-
-def export_config():
-    filepath = tkinter.filedialog.asksaveasfilename(defaultextension=".cfg",
-                                                    filetypes=[("Config Files", "*.cfg"), ("JSON Files", "*.json"),
-                                                               ("All Files", "*.*")])
-    if filepath:
-        config_data = {
-            'positions': [_serialize_position(pos) for pos in global_state.saved_positions],
-            'sequences': [_serialize_motion_sequence(seq) for seq in global_state.saved_motion_sequences]
+        config_data['home_position'] = global_state.home_position
+        config_data['reference_point_groups'] = {
+            gid: {**gdata, 'point_ids': list(gdata.get('point_ids', []))}
+            for gid, gdata in global_state.reference_point_groups.items()
         }
-        try:
-            with open(filepath, 'w') as f:
-                json.dump(config_data, f, indent=4)
-            print(f"Config exported to {filepath}")
-            global_state.connection_status_var.set("Config Exported!")
-            global_state.root.after(2000, lambda: global_state.connection_status_var.set("Controller Connected!"))
-        except Exception as e:
-            tkinter.messagebox.showerror("Export Error", f"Failed to export config: {e}")
-            print(f"Error exporting config: {e}")
+        config_data['action_sound_path'] = global_state.action_sound_path
 
-
-def import_config():
-    filepath = tkinter.filedialog.askopenfilename(defaultextension=".cfg",
-                                                  filetypes=[("Config Files", "*.cfg"), ("JSON Files", "*.json"),
-                                                             ("All Files", "*.*")])
-    if filepath:
-        if tkinter.messagebox.askyesno("Confirm Import",
-                                       "This will clear all current positions and motions. Continue?"):
-            global_state.is_initializing_config = True  # Set flag during import
+    for key, var in vars(global_state).items():
+        if isinstance(var, (tk.BooleanVar, tk.DoubleVar, tk.StringVar)) and key.endswith('_var'):
             try:
-                with open(filepath, 'r') as f:
-                    config_data = json.load(f)
+                value = var.get()
+                if isinstance(var, tk.BooleanVar):
+                    config_data['ui_settings'][key] = bool(value)
+                else:
+                    config_data['ui_settings'][key] = value
+            except (tk.TclError, AttributeError):
+                pass
 
-                global_state.saved_positions.clear()
-                global_state.saved_motion_sequences.clear()
+    for name, frame in collapsible_frames.items():
+        config_data['frame_states'][name] = frame.is_collapsed()
 
-                position_map = {}
-                for pos_data in config_data.get('positions', []):
-                    pos_obj = _deserialize_position(pos_data)
-                    global_state.saved_positions.append(pos_obj)
-                    position_map[pos_obj.id] = pos_obj
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(config_data, f, indent=4)
+        messagebox.showinfo("Save Success", f"Configuration saved to {filepath}")
+        print(f"Configuration saved to {filepath}")
+    except Exception as e:
+        log_error(e)
+        messagebox.showerror("Save Error", f"Failed to save configuration file. See error.log for details.")
 
-                for seq_data in config_data.get('sequences', []):
-                    # Repetition count is now read from file inside deserialize_motion_sequence
-                    seq_obj = _deserialize_motion_sequence(seq_data, position_map)
-                    global_state.saved_motion_sequences.append(seq_obj)
 
-                global_state.root.after(0, update_saved_positions_display)
-                global_state.root.after(0, update_motion_sequences_display)
-                global_state.root.after(0, hide_edit_position_controls)
-                global_state.root.after(0, hide_edit_motion_controls)
+def load_config(root, ref_tree, group_tree, collapsible_frames, filepath=None, initial_load=False):
+    """Loads application state from the specified filepath."""
+    if not filepath or not os.path.exists(filepath):
+        if not initial_load:
+            messagebox.showwarning("Load Warning", f"File not found: {filepath}")
+        return False
 
-                print(f"Config imported from {filepath}")
-                global_state.connection_status_var.set("Config Imported!")
-                global_state.root.after(2000, lambda: global_state.connection_status_var.set("Controller Connected!"))
+    try:
+        with open(filepath, 'r') as f:
+            config_data = json.load(f)
+    except Exception as e:
+        log_error(e)
+        if not initial_load:
+            messagebox.showerror("Load Error",
+                                 f"Failed to load or parse configuration file. See error.log for details.")
+        return False
 
-            except Exception as e:
-                tkinter.messagebox.showerror("Import Error", f"Failed to import config: {e}")
-                print(f"Error importing config: {e}")
-            finally:  # Ensure flag is reset even on error
-                global_state.is_initializing_config = False  # Reset flag after importeee
+    with global_state.controller_lock:
+        global_state.reference_points = config_data.get('reference_points', [])
+        global_state.home_position = config_data.get('home_position', {})
+        global_state.action_sound_path = config_data.get('action_sound_path', None)
+        loaded_groups = config_data.get('reference_point_groups', {})
+        global_state.reference_point_groups = {}
+        for gid, gdata in loaded_groups.items():
+            gdata['point_ids'] = set(gdata.get('point_ids', []))
+            gdata['hit_timestamps'] = {}
+            global_state.reference_point_groups[gid] = gdata
+
+    ref_tree.delete(*ref_tree.get_children())
+    for point in global_state.reference_points:
+        values = (
+            point.get('id', ''), f"{point.get('position', [0, 0, 0])[0]:.2f}",
+            f"{point.get('position', [0, 0, 0])[1]:.2f}",
+            f"{point.get('position', [0, 0, 0])[2]:.2f}")
+        ref_tree.insert('', 'end', iid=point.get('id'), values=values)
+
+    group_tree.delete(*group_tree.get_children())
+    for group_id, group_data in global_state.reference_point_groups.items():
+        group_tree.insert('', 'end', iid=group_id, values=(group_data.get('name', 'Unnamed Group'),))
+
+    update_home_position_ui()
+
+    ui_settings = config_data.get('ui_settings', {})
+    for key, value in ui_settings.items():
+        if hasattr(global_state, key):
+            try:
+                if not key.startswith('home_q_') and key != 'home_name_var':
+                    getattr(global_state, key).set(value)
+            except (tk.TclError, AttributeError):
+                pass
+
+    frame_states = config_data.get('frame_states', {})
+    for name, frame in collapsible_frames.items():
+        is_collapsed_in_config = frame_states.get(name, True)
+        if is_collapsed_in_config != frame.is_collapsed():
+            frame.toggle()
+
+    print(f"Configuration loaded from {filepath}")
+    return True
+
+
+def update_home_position_ui():
+    """Helper to sync the home position data to the UI."""
+    home_pos = global_state.home_position
+    if home_pos:
+        global_state.home_name_var.set(home_pos.get('name', 'Home'))
+        q = home_pos.get('orientation', [1.0, 0.0, 0.0, 0.0])
+        global_state.home_q_w_var.set(f"{q[0]:.3f}")
+        global_state.home_q_x_var.set(f"{q[1]:.3f}")
+        global_state.home_q_y_var.set(f"{q[2]:.3f}")
+        global_state.home_q_z_var.set(f"{q[3]:.3f}")
+    else:
+        for var in [global_state.home_name_var, global_state.home_q_w_var, global_state.home_q_x_var,
+                    global_state.home_q_y_var, global_state.home_q_z_var]:
+            if var: var.set("")

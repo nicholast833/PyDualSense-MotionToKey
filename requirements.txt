@@ -1,0 +1,6 @@
+numpy
+PyOpenGL
+pynput
+playsound
+pysdl2
+pyopengltk
