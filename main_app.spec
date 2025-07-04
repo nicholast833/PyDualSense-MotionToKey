@@ -6,7 +6,7 @@ block_cipher = None
 a = Analysis(
     ['main_app.py'],
     pathex=[],
-    binaries=[('hidapi.dll', '.')],
+    binaries=[('hidapi.dll', '.'), ('SDL2.dll', '.')],
     datas=[],
     hiddenimports=['pynput', 'pynput.keyboard._win32', 'pynput.mouse._win32'],
     hookspath=[],
