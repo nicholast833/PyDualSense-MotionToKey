@@ -31,7 +31,7 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-  build-windows:
+ build-windows:
       if: startsWith(github.ref, 'refs/tags/')
       needs: test
       runs-on: windows-latest
@@ -49,14 +49,14 @@ jobs:
         - name: Install dependencies
           run: |
             python -m pip install --upgrade pip
-            pip install pynput pydualsense pyinstaller
+            pip install -r requirements.txt
+            pip install pyinstaller
   
         - name: Download and Extract hidapi.dll
           shell: pwsh
           run: |
             Invoke-WebRequest -Uri https://github.com/libusb/hidapi/releases/download/hidapi-0.14.0/hidapi-win.zip -OutFile hidapi.zip
             Expand-Archive -Path hidapi.zip -DestinationPath .
-            # Corrected path below - removed "hidapi-win\"
             Copy-Item -Path "x64\hidapi.dll" -Destination "."
   
         - name: Build executable with PyInstaller
