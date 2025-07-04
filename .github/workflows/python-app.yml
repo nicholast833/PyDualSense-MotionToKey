@@ -65,7 +65,7 @@ jobs:
             # Download and extract SDL2.dll
             Invoke-WebRequest -Uri https://github.com/libsdl-org/SDL/releases/download/release-2.30.2/SDL2-devel-2.30.2-VC.zip -OutFile SDL2.zip
             Expand-Archive -Path SDL2.zip -DestinationPath .
-            Copy-Item -Path "SDL2-devel-2.30.2-VC\SDL2-2.30.2\lib\x64\SDL2.dll" -Destination "."
+            Copy-Item -Path "SDL2-2.30.2\lib\x64\SDL2.dll" -Destination "."
   
         - name: Build executable with PyInstaller
           run: |
