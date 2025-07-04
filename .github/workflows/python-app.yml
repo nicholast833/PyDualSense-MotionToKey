@@ -63,7 +63,7 @@ jobs:
   
         - name: Build executable with PyInstaller
           run: |
-            pyinstaller --noconsole --onefile --windowed --name "DualSenseMotionToKey" --add-binary "hidapi.dll;." --hidden-import=pynput main_app.py
+            pyinstaller --noconsole --onefile --windowed --name "DualSenseMotionToKey" --add-binary "hidapi.dll;." --hidden-import=pynput --hidden-import=pynput.keyboard._win32 --hidden-import=pynput.mouse._win32 main_app.py
   
         - name: Create Release and Upload Asset
           uses: softprops/action-gh-release@v1
