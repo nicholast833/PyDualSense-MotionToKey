@@ -39,6 +39,7 @@ is_mapping_home_button = False
 # --- Reference Points & Groups ---
 reference_points = []
 reference_point_groups = {}
+point_hit_history = {} # ADDED: For group-independent chain logic
 triggered_groups = set()
 group_grace_period = 2.0
 

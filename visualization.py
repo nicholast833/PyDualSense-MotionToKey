@@ -153,18 +153,23 @@ class VisFrame(OpenGLFrame):
         draw_prism(right_handle_vertices, handle_faces)
 
     def draw_reference_points(self, points, show_labels):
-        # FIX #2: Use try/finally to guarantee glPopMatrix is called.
         for point in points:
             glPushMatrix()
             try:
                 x, y, z = point['position']
                 glTranslatef(x, y, z)
+
+                # --- NEW: Color logic for chained points ---
                 if point['hit']:
-                    glColor3f(1.0, 1.0, 0.0)
+                    glColor3f(1.0, 1.0, 0.0)  # Yellow for hit
+                elif not point.get('is_active', True):
+                    glColor3f(0.5, 0.2, 0.8)  # Purple for inactive/waiting
                 else:
-                    glColor3f(0.0, 0.8, 0.8)
+                    glColor3f(0.0, 0.8, 0.8)  # Cyan for active/hittable
+
                 gluSphere(self.quadric, 0.05, 32, 32)
                 if show_labels:
+                    # Pass the hit status to the label drawing function
                     draw_text_3d(x, y, z, point['id'], point['hit'])
             finally:
                 glPopMatrix()

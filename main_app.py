@@ -13,21 +13,32 @@ import global_state
 from config_manager import save_config, load_config, update_home_position_ui
 from sdl_controller import poll_controller_data
 from visualization import VisFrame
+from madgwick_ahrs import quaternion_to_euler
 
-def rotate_point_by_quaternion(point, q):
-    q_point = np.array([0, point[0], point[1], point[2]])
-    q_conj = np.array([q[0], -q[1], -q[2], -q[3]])
-    q_rotated = quaternion_multiply(quaternion_multiply(q, q_point), q_conj)
-    return q_rotated[1:]
 
 def quaternion_multiply(q1, q2):
-    w1, x1, y1, z1 = q1;
+    w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
     w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
     x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
     y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
     z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
     return np.array([w, x, y, z])
+
+
+def quaternion_inverse(q):
+    """Calculates the inverse of a quaternion. For a unit quaternion, this is its conjugate."""
+    w, x, y, z = q
+    return np.array([w, -x, -y, -z])
+
+
+def rotate_point_by_quaternion(point, q):
+    """Rotates a 3D point by a quaternion."""
+    q_point = np.array([0, point[0], point[1], point[2]])
+    q_conj = quaternion_inverse(q)  # Use the inverse function for consistency
+    q_rotated = quaternion_multiply(quaternion_multiply(q, q_point), q_conj)
+    return q_rotated[1:]
+
 
 class CollapsibleFrame(ttk.Frame):
     def __init__(self, parent, text="", collapsed=True, *args, **kwargs):
@@ -62,6 +73,7 @@ class CollapsibleFrame(ttk.Frame):
     def is_collapsed(self):
         return self._collapsed.get()
 
+
 def sync_settings_to_global_state():
     if not global_state.running: return
     with global_state.controller_lock:
@@ -79,8 +91,14 @@ def sync_settings_to_global_state():
             global_state.pause_sensor_updates_enabled = global_state.pause_sensor_updates_var.get()
             global_state.hit_tolerance = global_state.hit_tolerance_var.get()
             global_state.distance_offset = global_state.distance_offset_var.get()
+            global_state.track_pitch = global_state.track_pitch_var.get()
+            global_state.track_yaw = global_state.track_yaw_var.get()
+            global_state.track_roll = global_state.track_roll_var.get()
+            # --- NEW: Sync action interval
+            global_state.action_interval = global_state.action_interval_var.get() / 1000.0  # Convert ms to seconds
         except (AttributeError, tk.TclError):
             pass
+
 
 def update_camera_settings(*args):
     try:
@@ -92,6 +110,7 @@ def update_camera_settings(*args):
     except (ValueError, tk.TclError):
         pass
 
+
 def update_object_dimensions(*args):
     with global_state.controller_lock:
         try:
@@ -102,9 +121,11 @@ def update_object_dimensions(*args):
         except (ValueError, tk.TclError):
             pass
 
+
 def toggle_point_labels():
     with global_state.controller_lock:
         global_state.show_ref_point_labels = global_state.show_ref_point_labels_var.get()
+
 
 def load_config_and_update_gui(root, ref_tree, group_tree, collapsible_frames, filepath=None, initial_load=False):
     print("DEBUG: load_config_and_update_gui called.")
@@ -115,6 +136,7 @@ def load_config_and_update_gui(root, ref_tree, group_tree, collapsible_frames, f
         # Only zero on manual load, not initial load
         if not initial_load:
             zero_orientation()
+
 
 def load_action_sound():
     """Opens a file dialog to select an audio file for action notifications."""
@@ -130,6 +152,7 @@ def load_action_sound():
     except Exception as e:
         messagebox.showerror("Load Sound Error", f"Could not open file dialog or load sound.\n\nError: {e}")
 
+
 def zero_orientation():
     """
     Called by the 'Zero Orientation' button or a mapped controller button.
@@ -144,11 +167,13 @@ def zero_orientation():
             global_state.recenter_event.set()
             print("Resetting to default zero orientation.")
 
+
 def start_button_mapping():
     with global_state.controller_lock:
         global_state.is_mapping_home_button = not global_state.is_mapping_home_button
         status = "Listening..." if global_state.is_mapping_home_button else ""
         global_state.mapping_status_var.set(status)
+
 
 def toggle_visualization(root, vis_container, controls_container):
     if global_state.show_visualization_var.get():
@@ -171,9 +196,11 @@ def toggle_visualization(root, vis_container, controls_container):
         root.minsize(new_width, 0);
         root.geometry(f"{new_width}x{window_height}")
 
+
 def _on_mousewheel(event, canvas):
     direction = -1 if (event.num == 4 or event.delta > 0) else 1
     canvas.yview_scroll(direction, "units")
+
 
 def on_closing():
     global_state.running = False
@@ -188,16 +215,19 @@ def on_closing():
     print("Closing application window.")
     root.destroy()
 
+
 def add_reference_point(tree, position=None):
     with global_state.controller_lock:
         if position is None:
             # FIX: Use the live controller tip position directly
             position = global_state.controller_tip_position
         point_id = str(uuid.uuid4().hex[:6])
-        new_point = {'id': point_id, 'position': list(position), 'hit': False}
+        # --- MODIFIED: Add chain_parent to new points
+        new_point = {'id': point_id, 'position': list(position), 'hit': False, 'chain_parent': None}
         global_state.reference_points.append(new_point)
         tree.insert('', 'end', iid=point_id,
                     values=(point_id, f"{position[0]:.2f}", f"{position[1]:.2f}", f"{position[2]:.2f}"))
+
 
 def add_manual_reference_point(tree):
     try:
@@ -207,6 +237,7 @@ def add_manual_reference_point(tree):
         add_reference_point(tree, position=[x, y, z])
     except ValueError:
         messagebox.showerror("Invalid Input", "Please enter valid numbers for X, Y, and Z.")
+
 
 def delete_reference_point(tree):
     selected_items = tree.selection()
@@ -219,6 +250,15 @@ def delete_reference_point(tree):
             # Remove the point from the main list
             global_state.reference_points = [p for p in global_state.reference_points if p['id'] != item_id]
 
+            # --- NEW: Unchain any points that were chained to the deleted point
+            for p in global_state.reference_points:
+                if p.get('chain_parent') == item_id:
+                    p['chain_parent'] = None
+
+            # MODIFIED: Clean up from new hit history dictionary
+            if item_id in global_state.point_hit_history:
+                del global_state.point_hit_history[item_id]
+
             # Remove the point from any group that contains it
             for group_id, group_data in global_state.reference_point_groups.items():
                 if item_id in group_data['point_ids']:
@@ -227,20 +267,30 @@ def delete_reference_point(tree):
             tree.delete(item_id)
     print(f"Deleted point(s): {', '.join(selected_items)}")
 
-def on_point_select(event, tree, edit_frame, group_combo):
+
+def on_point_select(event, tree, edit_frame, group_combo, chain_combo):
     """Handles populating the edit form when a point is selected."""
-    # First, dynamically update the list of available groups in the dropdown
+    # --- MODIFIED: Update group and chain dropdowns
+    selected_iid = tree.selection()
+
+    # Update group dropdown
     group_names = ['None'] + [g['name'] for g in global_state.reference_point_groups.values()]
     group_ids = ['None'] + list(global_state.reference_point_groups.keys())
-    # Create a mapping from displayed name to actual ID
     group_combo.name_to_id_map = dict(zip(group_names, group_ids))
     group_combo['values'] = group_names
 
-    selected_iid = tree.selection()
+    # Update chain dropdown
+    if selected_iid:
+        point_ids = ['None'] + [p['id'] for p in global_state.reference_points if p['id'] != selected_iid[0]]
+        chain_combo['values'] = point_ids
+    else:
+        chain_combo['values'] = ['None']
+
     if not selected_iid:
         for child in edit_frame.winfo_children():
             child.configure(state='disabled')
-        global_state.edit_point_group_var.set('None')  # Clear group selection
+        global_state.edit_point_group_var.set('None')
+        global_state.edit_point_chain_var.set('None')
         return
 
     selected_iid = selected_iid[0]
@@ -252,7 +302,7 @@ def on_point_select(event, tree, edit_frame, group_combo):
             global_state.edit_y_var.set(f"{point['position'][1]:.2f}")
             global_state.edit_z_var.set(f"{point['position'][2]:.2f}")
 
-            # Find which group the point belongs to and set the dropdown
+            # Set group dropdown
             current_group_name = 'None'
             for group_id, group_data in global_state.reference_point_groups.items():
                 if selected_iid in group_data['point_ids']:
@@ -260,8 +310,13 @@ def on_point_select(event, tree, edit_frame, group_combo):
                     break
             global_state.edit_point_group_var.set(current_group_name)
 
+            # Set chain dropdown
+            chain_parent_id = point.get('chain_parent')
+            global_state.edit_point_chain_var.set(chain_parent_id if chain_parent_id else 'None')
+
             for child in edit_frame.winfo_children():
                 child.configure(state='normal')
+
 
 def create_group(tree):
     """Creates a new, empty point group with a unique default name."""
@@ -278,13 +333,14 @@ def create_group(tree):
         new_group = {
             "name": new_name,
             "point_ids": set(),
-            "hit_timestamps": {},  # ADDED: For grace period tracking
+            "hit_timestamps": {},
             "action": {"type": "Key Press", "detail": ""}
         }
         global_state.reference_point_groups[group_id] = new_group
 
     tree.insert('', 'end', iid=group_id, values=(new_group['name'],))
     tree.selection_set(group_id)
+
 
 def delete_group(tree):
     """Deletes the selected group."""
@@ -299,6 +355,7 @@ def delete_group(tree):
         with global_state.controller_lock:
             del global_state.reference_point_groups[selected_id]
         tree.delete(selected_id)
+
 
 def assign_point_to_group(point_tree, group_combo):
     """Assigns the selected point to the selected group."""
@@ -322,6 +379,7 @@ def assign_point_to_group(point_tree, group_combo):
         if group_id and group_id != 'None':
             global_state.reference_point_groups[group_id]['point_ids'].add(point_id)
             print(f"Assigned point {point_id} to group '{group_name}'")
+
 
 def on_group_select(event, tree, details_frame, member_list_tree):
     """Handles populating the group details UI when a group is selected."""
@@ -359,6 +417,7 @@ def on_group_select(event, tree, details_frame, member_list_tree):
                 if point:
                     member_list_tree.insert('', 'end', iid=f"member_{point_id}", values=(point_id,))
 
+
 def update_group_details(tree):
     """Saves changes made to the selected group's name or action."""
     selected_id = tree.selection()
@@ -378,6 +437,7 @@ def update_group_details(tree):
             tree.item(selected_id, values=(group_data['name'],))
             print(f"Updated group {selected_id}")
 
+
 def update_selected_point(tree, edit_frame):
     selected_iid = tree.selection()
     if not selected_iid: messagebox.showinfo("No Selection", "Please select a point to edit."); return
@@ -387,12 +447,19 @@ def update_selected_point(tree, edit_frame):
         new_x = float(global_state.edit_x_var.get());
         new_y = float(global_state.edit_y_var.get());
         new_z = float(global_state.edit_z_var.get())
+        new_chain_parent = global_state.edit_point_chain_var.get()
+        if new_chain_parent == 'None':
+            new_chain_parent = None
+
         new_values = (new_id, f"{new_x:.2f}", f"{new_y:.2f}", f"{new_z:.2f}")
+
         with global_state.controller_lock:
             point_to_update = next((p for p in global_state.reference_points if p['id'] == original_iid), None)
             if point_to_update:
-                point_to_update['id'] = new_id;
+                point_to_update['id'] = new_id
                 point_to_update['position'] = [new_x, new_y, new_z]
+                point_to_update['chain_parent'] = new_chain_parent  # --- NEW: Save chain parent
+
         if original_iid != new_id:
             index = tree.index(original_iid);
             tree.delete(original_iid)
@@ -404,14 +471,16 @@ def update_selected_point(tree, edit_frame):
     except (ValueError, TypeError):
         messagebox.showerror("Invalid Input", "Please enter valid data for all fields.")
 
+
 def update_action_details_ui(action_type, detail_entry, detail_combo):
     """Shows/hides the correct detail widget based on action type."""
     if action_type == "Controller Press":
         detail_entry.grid_remove()
         detail_combo.grid()
-    else: # Key Press or Mouse Click
+    else:  # Key Press or Mouse Click
         detail_combo.grid_remove()
         detail_entry.grid()
+
 
 def set_home_position():
     """Sets the current controller orientation as the home position."""
@@ -423,12 +492,61 @@ def set_home_position():
     update_home_position_ui()
     print("Home position set.")
 
+
+def set_home_and_update_points(ref_tree):
+    """
+    Sets the current orientation as the new home and transforms all existing
+    reference points and the camera view to maintain their relative positions.
+    """
+    with global_state.controller_lock:
+        if not global_state.home_position or 'orientation' not in global_state.home_position:
+            messagebox.showinfo("No Home Set",
+                                "Cannot update points without an initial home position. Please set a home position first.")
+            return
+
+        q_old = np.array(global_state.home_position['orientation'])
+        q_new = np.array(global_state.orientation_quaternion)
+        q_old_inv = quaternion_inverse(q_old)
+        q_delta = quaternion_multiply(q_new, q_old_inv)
+
+        for point in global_state.reference_points:
+            p_old = np.array(point['position'])
+            p_new = rotate_point_by_quaternion(p_old, q_delta)
+            point['position'] = list(p_new)
+            point_id = point['id']
+            new_values = (point_id, f"{p_new[0]:.2f}", f"{p_new[1]:.2f}", f"{p_new[2]:.2f}")
+            if ref_tree.exists(point_id):
+                ref_tree.item(point_id, values=new_values)
+
+        # --- MODIFIED: Camera update logic fixed
+        d_pitch, d_yaw, d_roll = quaternion_to_euler(q_delta)
+        global_state.camera_orbit_x -= d_pitch
+        global_state.camera_orbit_y -= d_yaw
+        global_state.camera_roll -= d_roll
+
+        try:
+            global_state.camera_orbit_x_var.set(global_state.camera_orbit_x)
+            global_state.camera_orbit_y_var.set(global_state.camera_orbit_y)
+            global_state.camera_roll_var.set(global_state.camera_roll)
+        except tk.TclError:
+            pass
+
+        global_state.home_position = {
+            'name': global_state.home_position.get('name', 'Home'),
+            'orientation': list(q_new)
+        }
+
+    update_home_position_ui()
+    print("Home position updated, all reference points and camera transformed.")
+
+
 def go_to_home():
     """Triggers the event to reset the orientation to the home position."""
     if not global_state.home_position:
         messagebox.showinfo("No Home Set", "Please set a home position first.")
         return
     global_state.go_to_home_event.set()
+
 
 def update_home_from_ui():
     """Saves the manually edited home position data from the UI."""
@@ -442,7 +560,6 @@ def update_home_from_ui():
             float(global_state.home_q_y_var.get()),
             float(global_state.home_q_z_var.get())
         ]
-        # Normalize the new quaternion to ensure it's a valid rotation
         new_q_norm = np.linalg.norm(new_q)
         if new_q_norm == 0:
             messagebox.showerror("Invalid Input", "Quaternion cannot be all zeros.")
@@ -453,10 +570,11 @@ def update_home_from_ui():
             global_state.home_position['name'] = global_state.home_name_var.get()
             global_state.home_position['orientation'] = list(new_q)
 
-        update_home_position_ui()  # Refresh UI to show normalized values
+        update_home_position_ui()
         print("Home position updated.")
     except (ValueError, tk.TclError):
         messagebox.showerror("Invalid Input", "Please enter valid numbers for all quaternion fields.")
+
 
 def delete_home_position():
     """Deletes the currently saved home position."""
@@ -473,7 +591,7 @@ if __name__ == "__main__":
     root.title("SDL Gyro Visualizer")
     root.geometry("650x750")
 
-    # Initialize all Tkinter variables
+    # --- MODIFIED: Initialize new global state variables ---
     global_state.show_visualization_var = tk.BooleanVar(value=False)
     global_state.pause_sensor_updates_var = tk.BooleanVar(value=False)
     global_state.debug_mode_var = tk.BooleanVar(value=False)
@@ -514,6 +632,20 @@ if __name__ == "__main__":
     global_state.group_action_type_var = tk.StringVar(value="Key Press")
     global_state.group_action_detail_var = tk.StringVar()
     global_state.edit_point_group_var = tk.StringVar()
+    global_state.track_pitch_var = tk.BooleanVar(value=True)
+    global_state.track_yaw_var = tk.BooleanVar(value=True)
+    global_state.track_roll_var = tk.BooleanVar(value=True)
+    global_state.track_pitch = True
+    global_state.track_yaw = True
+    global_state.track_roll = True
+    global_state.last_good_pitch = 0.0
+    global_state.last_good_yaw = 0.0
+    global_state.last_good_roll = 0.0
+    # --- NEW: Action interval and chain variables
+    global_state.action_interval_var = tk.DoubleVar(value=1000.0)
+    global_state.action_interval = 1.0
+    global_state.group_last_triggered = {}
+    global_state.edit_point_chain_var = tk.StringVar()
 
     main_frame = ttk.Frame(root)
     main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -617,12 +749,19 @@ if __name__ == "__main__":
     home_frame.pack(fill='x', expand=True)
     home_buttons_frame = ttk.Frame(home_frame)
     home_buttons_frame.pack(fill='x')
-    ttk.Button(home_buttons_frame, text="Set Current as Home", command=set_home_position).pack(side='left',
-                                                                                               fill='x',
-                                                                                               expand=True,
-                                                                                               padx=5, pady=2)
+
+    ttk.Button(home_buttons_frame, text="Set Home", command=set_home_position).pack(side='left',
+                                                                                    fill='x',
+                                                                                    expand=True,
+                                                                                    padx=5, pady=2)
+    ttk.Button(home_buttons_frame, text="Set & Update", command=lambda: set_home_and_update_points(ref_tree)).pack(
+        side='left',
+        fill='x',
+        expand=True,
+        padx=5, pady=2)
     ttk.Button(home_buttons_frame, text="Go Home", command=go_to_home).pack(side='left', fill='x', expand=True,
                                                                             padx=5, pady=2)
+
     home_details_frame = ttk.LabelFrame(home_frame, text="Home Position Details")
     home_details_frame.pack(fill='x', padx=5, pady=5)
     ttk.Label(home_details_frame, text="Name:").grid(row=0, column=0, sticky='w', padx=5, pady=2)
@@ -659,28 +798,31 @@ if __name__ == "__main__":
     group_details_frame = ttk.LabelFrame(group_cf.content_frame, text="Selected Group Details")
     group_details_frame.pack(fill='x', padx=5, pady=5)
 
+    # --- NEW: Action Interval Slider ---
     create_slider_entry(group_details_frame, "Grace Period (s):", global_state.group_grace_period_var, 0.0, 10.0, 0,
                         digits=2)
+    create_slider_entry(group_details_frame, "Action Cooldown (ms):", global_state.action_interval_var, 5.0, 3000.0, 1,
+                        digits=0)
 
-    ttk.Label(group_details_frame, text="Name:").grid(row=1, column=0, sticky='w', padx=5, pady=2)
-    ttk.Entry(group_details_frame, textvariable=global_state.group_name_var).grid(row=1, column=1, sticky='ew', padx=5,
+    ttk.Label(group_details_frame, text="Name:").grid(row=2, column=0, sticky='w', padx=5, pady=2)
+    ttk.Entry(group_details_frame, textvariable=global_state.group_name_var).grid(row=2, column=1, sticky='ew', padx=5,
                                                                                   pady=2)
 
-    ttk.Label(group_details_frame, text="Action Type:").grid(row=2, column=0, sticky='w', padx=5, pady=2)
+    ttk.Label(group_details_frame, text="Action Type:").grid(row=3, column=0, sticky='w', padx=5, pady=2)
     action_types = ["Key Press", "Mouse Click"]
     action_type_combo = ttk.Combobox(group_details_frame, textvariable=global_state.group_action_type_var,
                                      values=action_types, state="readonly")
-    action_type_combo.grid(row=2, column=1, sticky='ew', padx=5, pady=2)
+    action_type_combo.grid(row=3, column=1, sticky='ew', padx=5, pady=2)
 
-    ttk.Label(group_details_frame, text="Action Detail:").grid(row=3, column=0, sticky='w', padx=5, pady=2)
-    ttk.Entry(group_details_frame, textvariable=global_state.group_action_detail_var).grid(row=3, column=1, sticky='ew',
+    ttk.Label(group_details_frame, text="Action Detail:").grid(row=4, column=0, sticky='w', padx=5, pady=2)
+    ttk.Entry(group_details_frame, textvariable=global_state.group_action_detail_var).grid(row=4, column=1, sticky='ew',
                                                                                            padx=5, pady=2)
 
     ttk.Button(group_details_frame, text="Update Group Details", command=lambda: update_group_details(group_tree)).grid(
-        row=4, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
+        row=5, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
 
     member_frame = ttk.LabelFrame(group_details_frame, text="Points in Group")
-    member_frame.grid(row=5, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
+    member_frame.grid(row=6, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
     member_list_tree = ttk.Treeview(member_frame, columns=('ID',), show='headings', height=3)
     member_list_tree.pack(side='left', fill='x', expand=True)
     member_list_tree.heading('ID', text='Point ID')
@@ -691,8 +833,7 @@ if __name__ == "__main__":
                     lambda e: on_group_select(e, group_tree, group_details_frame, member_list_tree))
 
     ref_content = ref_points_cf.content_frame
-    ttk.Button(ref_content, text="Record Current Tip Position",
-               command=lambda: add_reference_point(ref_tree)).pack(
+    ttk.Button(ref_content, text="Record Current Tip Position", command=lambda: add_reference_point(ref_tree)).pack(
         fill='x', padx=5, pady=2)
     manual_frame = ttk.Frame(ref_content)
     manual_frame.pack(fill='x', padx=5, pady=5)
@@ -706,41 +847,42 @@ if __name__ == "__main__":
     tree_frame.pack(fill='x', expand=True, padx=5, pady=5)
     ref_tree = ttk.Treeview(tree_frame, columns=('ID', 'X', 'Y', 'Z'), show='headings', height=4)
     ref_tree.pack(side='left', fill='x', expand=True)
-    for col, w in [('ID', 50), ('X', 70), ('Y', 70), ('Z', 70)]: ref_tree.heading(col,
-                                                                                  text=col); ref_tree.column(
-        col,
-        width=w,
-        anchor='center')
-    ttk.Button(ref_content, text="Delete Selected", command=lambda: delete_reference_point(ref_tree)).pack(
-        fill='x',
-        padx=5,
-        pady=2)
+    for col, w in [('ID', 50), ('X', 70), ('Y', 70), ('Z', 70)]: ref_tree.heading(col, text=col); ref_tree.column(col,
+                                                                                                                  width=w,
+                                                                                                                  anchor='center')
+    ttk.Button(ref_content, text="Delete Selected", command=lambda: delete_reference_point(ref_tree)).pack(fill='x',
+                                                                                                           padx=5,
+                                                                                                           pady=2)
 
+    # --- MODIFIED: Edit Point Frame with Chaining ---
     edit_content = edit_cf.content_frame
     for i, (label, var) in enumerate(
-            [("ID:", global_state.edit_id_var), ("X:", global_state.edit_x_var),
-             ("Y:", global_state.edit_y_var),
+            [("ID:", global_state.edit_id_var), ("X:", global_state.edit_x_var), ("Y:", global_state.edit_y_var),
              ("Z:", global_state.edit_z_var)]):
         ttk.Label(edit_content, text=label).grid(row=i, column=0, sticky='w', padx=5, pady=2)
-        ttk.Entry(edit_content, textvariable=var, state='disabled').grid(row=i, column=1, sticky='ew', padx=5,
-                                                                         pady=2)
-    ttk.Button(edit_content, text="Update Point", command=lambda: update_selected_point(ref_tree, edit_content),
-               state='disabled').grid(row=4, columnspan=2, sticky='ew', padx=5, pady=5)
+        ttk.Entry(edit_content, textvariable=var, state='disabled').grid(row=i, column=1, sticky='ew', padx=5, pady=2)
 
-    ttk.Label(edit_content, text="Assign to Group:").grid(row=5, column=0, sticky='w', padx=5, pady=2)
+    ttk.Label(edit_content, text="Assign to Group:").grid(row=4, column=0, sticky='w', padx=5, pady=2)
     group_combo = ttk.Combobox(edit_content, textvariable=global_state.edit_point_group_var, values=['None'],
                                state='readonly')
-    group_combo.grid(row=5, column=1, sticky='ew', padx=5, pady=2)
-    ttk.Button(edit_content, text="Assign Point", command=lambda: assign_point_to_group(ref_tree, group_combo)).grid(
-        row=6, columnspan=2, sticky='ew', padx=5, pady=5)
+    group_combo.grid(row=4, column=1, sticky='ew', padx=5, pady=2)
 
-    ref_tree.bind('<<TreeviewSelect>>', lambda e: on_point_select(e, ref_tree, edit_content, group_combo))
+    ttk.Label(edit_content, text="Chain After Point:").grid(row=5, column=0, sticky='w', padx=5, pady=2)
+    chain_combo = ttk.Combobox(edit_content, textvariable=global_state.edit_point_chain_var, values=['None'],
+                               state='readonly')
+    chain_combo.grid(row=5, column=1, sticky='ew', padx=5, pady=2)
 
-    create_slider_entry(ref_settings_cf.content_frame, "Hit Tolerance:", global_state.hit_tolerance_var, 0.01,
-                        1.0, 0,
+    ttk.Button(edit_content, text="Update Point", command=lambda: update_selected_point(ref_tree, edit_content),
+               state='disabled').grid(row=6, columnspan=2, sticky='ew', padx=5, pady=5)
+    ttk.Button(edit_content, text="Assign Point to Group",
+               command=lambda: assign_point_to_group(ref_tree, group_combo)).grid(row=7, columnspan=2, sticky='ew',
+                                                                                  padx=5, pady=5)
+
+    ref_tree.bind('<<TreeviewSelect>>', lambda e: on_point_select(e, ref_tree, edit_content, group_combo, chain_combo))
+
+    create_slider_entry(ref_settings_cf.content_frame, "Hit Tolerance:", global_state.hit_tolerance_var, 0.01, 1.0, 0,
                         digits=2)
-    create_slider_entry(ref_settings_cf.content_frame, "Distance Offset:", global_state.distance_offset_var,
-                        0.0, 2.0,
+    create_slider_entry(ref_settings_cf.content_frame, "Distance Offset:", global_state.distance_offset_var, 0.0, 2.0,
                         1, digits=2)
     ttk.Checkbutton(ref_settings_cf.content_frame, text="Show Point Labels",
                     variable=global_state.show_ref_point_labels_var, command=toggle_point_labels).grid(row=2,
@@ -750,20 +892,16 @@ if __name__ == "__main__":
 
     create_slider_entry(filter_cf.content_frame, "Filter Beta Gain:", global_state.beta_gain_var, 0.01, 1.0, 0,
                         digits=2)
-    create_slider_entry(filter_cf.content_frame, "Drift Correction (Zeta):",
-                        global_state.drift_correction_gain_var,
+    create_slider_entry(filter_cf.content_frame, "Drift Correction (Zeta):", global_state.drift_correction_gain_var,
                         0.0, 0.5, 1, digits=3)
-    create_slider_entry(filter_cf.content_frame, "Accel Smoothing:", global_state.accelerometer_smoothing_var,
-                        0.01, 1.0, 2, digits=2)
+    create_slider_entry(filter_cf.content_frame, "Accel Smoothing:", global_state.accelerometer_smoothing_var, 0.01,
+                        1.0, 2, digits=2)
     ttk.Checkbutton(filter_cf.content_frame, text="Drift-Correct Only When Still",
-                    variable=global_state.correct_drift_when_still_var).grid(row=3, columnspan=3, sticky='w',
-                                                                             padx=5)
+                    variable=global_state.correct_drift_when_still_var).grid(row=3, columnspan=3, sticky='w', padx=5)
 
-    create_slider_entry(camera_cf.content_frame, "Orbit X:", global_state.camera_orbit_x_var, -180, 180, 0,
-                        digits=0,
+    create_slider_entry(camera_cf.content_frame, "Orbit X:", global_state.camera_orbit_x_var, -180, 180, 0, digits=0,
                         cmd=update_camera_settings)
-    create_slider_entry(camera_cf.content_frame, "Orbit Y:", global_state.camera_orbit_y_var, -180, 180, 1,
-                        digits=0,
+    create_slider_entry(camera_cf.content_frame, "Orbit Y:", global_state.camera_orbit_y_var, -180, 180, 1, digits=0,
                         cmd=update_camera_settings)
 
     create_slider_entry(dim_cf.content_frame, "Width:", global_state.dimension_w_var, 0.1, 5.0, 0, digits=1,
@@ -775,12 +913,25 @@ if __name__ == "__main__":
 
     ttk.Checkbutton(debug_cf.content_frame, text="Log to UI", variable=global_state.verbose_logging_var).pack(
         anchor='w', padx=5)
-    ttk.Checkbutton(debug_cf.content_frame, text="Log to Console",
-                    variable=global_state.log_to_console_var).pack(anchor='w', padx=5)
+    ttk.Checkbutton(debug_cf.content_frame, text="Log to Console", variable=global_state.log_to_console_var).pack(
+        anchor='w', padx=5)
     ttk.Checkbutton(debug_cf.content_frame, text="Play Sound on Action",
                     variable=global_state.play_action_sound_var).pack(anchor='w', padx=5)
-    log_label = ttk.Label(debug_cf.content_frame, textvariable=global_state.log_message_var,
-                          font=("Courier", 9), wraplength=300, justify='left')
+
+    ttk.Separator(debug_cf.content_frame, orient='horizontal').pack(fill='x', pady=5, padx=5)
+
+    axis_track_frame = ttk.Frame(debug_cf.content_frame)
+    axis_track_frame.pack(fill='x', padx=5, pady=2)
+    ttk.Checkbutton(axis_track_frame, text="Track Pitch", variable=global_state.track_pitch_var).pack(side='left',
+                                                                                                      expand=True,
+                                                                                                      padx=2)
+    ttk.Checkbutton(axis_track_frame, text="Track Yaw", variable=global_state.track_yaw_var).pack(side='left',
+                                                                                                  expand=True, padx=2)
+    ttk.Checkbutton(axis_track_frame, text="Track Roll", variable=global_state.track_roll_var).pack(side='left',
+                                                                                                    expand=True, padx=2)
+
+    log_label = ttk.Label(debug_cf.content_frame, textvariable=global_state.log_message_var, font=("Courier", 9),
+                          wraplength=300, justify='left')
     log_label.pack(anchor='w', padx=5, pady=2, fill='x')
 
     config_content = config_cf.content_frame
@@ -829,6 +980,13 @@ if __name__ == "__main__":
         if global_state.home_button_event.is_set(): zero_orientation(); global_state.home_button_event.clear()
 
         with global_state.controller_lock:
+            current_pitch, current_yaw, current_roll = global_state.gyro_rotation
+            if global_state.track_pitch: global_state.last_good_pitch = current_pitch
+            if global_state.track_yaw: global_state.last_good_yaw = current_yaw
+            if global_state.track_roll: global_state.last_good_roll = current_roll
+            global_state.gyro_rotation = [global_state.last_good_pitch, global_state.last_good_yaw,
+                                          global_state.last_good_roll]
+
             if hasattr(global_state, 'log_message_var'):
                 global_state.log_message_var.set(global_state.log_message)
 
@@ -837,36 +995,73 @@ if __name__ == "__main__":
             tip_pos = rotate_point_by_quaternion(np.array([0, 0, offset]), q)
             global_state.controller_tip_position = tip_pos
 
-            currently_hit_points = set()
-            for point in global_state.reference_points:
-                is_hit = np.linalg.norm(tip_pos - np.array(point['position'])) < global_state.hit_tolerance
-                point['hit'] = is_hit
-                if is_hit:
-                    currently_hit_points.add(point['id'])
-
+            # --- MODIFIED: Point hit, chain, and cooldown logic ---
             current_time = time.monotonic()
             grace_period = global_state.group_grace_period
 
+            # Part 1: Handle Chaining and Point State ('hit', 'is_active')
+            # Expire old hits from the global history
+            expired_ids = [pid for pid, hit_time in global_state.point_hit_history.items() if
+                           current_time - hit_time > grace_period]
+            for pid in expired_ids:
+                del global_state.point_hit_history[pid]
+
+            # Update point states ('is_active', 'hit') based on new data and chain history
+            currently_hit_points = set()
+            for point in global_state.reference_points:
+                parent_id = point.get('chain_parent')
+
+                # A point is 'active' (hittable) if it's a chain root or its parent was hit recently.
+                if not parent_id:
+                    point['is_active'] = True
+                else:
+                    point['is_active'] = parent_id in global_state.point_hit_history
+
+                # Check for a new hit on this point
+                is_within_distance = np.linalg.norm(tip_pos - np.array(point['position'])) < global_state.hit_tolerance
+
+                # The point's final 'hit' status for this frame is True if it's active and within distance
+                point['hit'] = point['is_active'] and is_within_distance
+
+                if point['hit']:
+                    currently_hit_points.add(point['id'])
+                    # Record the hit in the global history for chaining purposes
+                    global_state.point_hit_history[point['id']] = current_time
+
+            # Part 2: Process Group Completions
+            cooldown = global_state.action_interval
             completed_in_current_frame = set()
 
             for group_id, group_data in global_state.reference_point_groups.items():
+                # Update the group-specific timestamps for any members that were hit in this frame
                 for point_id in group_data['point_ids']:
                     if point_id in currently_hit_points:
                         group_data.setdefault('hit_timestamps', {})[point_id] = current_time
 
-                expired_points = [
-                    pid for pid, hit_time in group_data.get('hit_timestamps', {}).items()
-                    if current_time - hit_time > grace_period
-                ]
-                for pid in expired_points:
+                # Expire old timestamps from the group's perspective
+                expired_group_points = [pid for pid, hit_time in group_data.get('hit_timestamps', {}).items() if
+                                        current_time - hit_time > grace_period]
+                for pid in expired_group_points:
                     del group_data['hit_timestamps'][pid]
 
+                # Check if all points in the group have been hit within the grace period
                 if group_data['point_ids'] and len(group_data.get('hit_timestamps', {})) == len(
                         group_data['point_ids']):
                     completed_in_current_frame.add(group_id)
-                    if group_id not in global_state.previously_completed_groups:
-                        action_executor.execute(group_data['action'])
+
+                    last_triggered = global_state.group_last_triggered.get(group_id, 0)
+                    if (current_time - last_triggered) > cooldown:
+                        if group_id not in global_state.previously_completed_groups:
+                            action_executor.execute(group_data['action'])
+                            global_state.group_last_triggered[group_id] = current_time
+
+                        # Reset the group's history so it can be triggered again
                         group_data['hit_timestamps'].clear()
+
+                        # Reset the global history for the points in this group so the chain can restart
+                        for pid in group_data['point_ids']:
+                            if pid in global_state.point_hit_history:
+                                del global_state.point_hit_history[pid]
 
             global_state.previously_completed_groups = completed_in_current_frame
 

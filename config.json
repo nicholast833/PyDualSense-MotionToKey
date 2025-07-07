@@ -3,10 +3,10 @@
         "dimension_w_var": 1.6,
         "dimension_h_var": 0.8,
         "dimension_d_var": 0.4,
-        "camera_orbit_x_var": -165.0,
-        "camera_orbit_y_var": 0.0,
+        "camera_orbit_x_var": 44.4439921781164,
+        "camera_orbit_y_var": 0.7937464301770447,
         "camera_zoom_var": -6.0,
-        "camera_roll_var": 0.0,
+        "camera_roll_var": 3.098214135751044,
         "pause_sensor_updates_var": false,
         "home_button_map_var": "",
         "mapping_status_var": "",
@@ -15,7 +15,7 @@
         "raw_gyro_var": "",
         "raw_accel_var": "",
         "verbose_logging_var": false,
-        "beta_gain_var": 0.35363636363636364,
+        "beta_gain_var": 0.48454545454545456,
         "drift_correction_gain_var": 0.05,
         "ref_x_var": "",
         "ref_y_var": "",
@@ -23,90 +23,99 @@
         "hit_tolerance_var": 0.15,
         "distance_offset_var": 0.5,
         "show_ref_point_labels_var": true,
-        "edit_id_var": "ca0bd6",
-        "edit_x_var": "-0.00",
-        "edit_y_var": "-0.49",
-        "edit_z_var": "0.08",
+        "edit_id_var": "3",
+        "edit_x_var": "0.00",
+        "edit_y_var": "0.10",
+        "edit_z_var": "0.49",
         "log_message_var": "",
         "accelerometer_smoothing_var": 0.5,
         "log_to_console_var": false,
         "correct_drift_when_still_var": true,
         "home_name_var": "Home",
-        "home_q_w_var": "0.750",
-        "home_q_x_var": "0.650",
-        "home_q_y_var": "0.000",
-        "home_q_z_var": "0.000",
-        "edit_point_group_var": "Testing",
-        "group_action_type_var": "Key Press",
+        "home_q_w_var": "-0.441",
+        "home_q_x_var": "0.897",
+        "home_q_y_var": "-0.021",
+        "home_q_z_var": "0.018",
+        "edit_point_group_var": "None",
+        "group_action_type_var": "Mouse Click",
         "group_action_detail_var": "e",
         "group_name_var": "Testing",
         "play_action_sound_var": true,
         "group_grace_period_var": 2.0,
         "save_filename_var": "config.json",
-        "load_filename_var": "config.json"
+        "load_filename_var": "config.json",
+        "track_pitch_var": true,
+        "track_yaw_var": false,
+        "track_roll_var": false,
+        "action_interval_var": 1000.0,
+        "edit_point_chain_var": "None"
     },
     "reference_points": [
         {
-            "id": "ca0bd6",
+            "id": "1",
             "position": [
-                -0.00013715176514791808,
-                -0.4933774329536096,
-                0.08110912304728601
+                0.025232820004326056,
+                0.38658542297010745,
+                -0.3105076738852883
             ],
-            "hit": true
+            "hit": true,
+            "is_active": true,
+            "chain_parent": null
         },
         {
-            "id": "d6776f",
+            "id": "2",
             "position": [
-                -0.012207302092741793,
-                -0.33007459753951185,
-                -0.3753688077541151
+                0.036281156498337665,
+                0.4983665770928921,
+                0.05113152178312014
             ],
-            "hit": false
+            "hit": false,
+            "is_active": true,
+            "chain_parent": "1"
         },
         {
-            "id": "9d2613",
+            "id": "3",
             "position": [
-                -0.0019469319979511894,
-                -0.09621878149793142,
-                -0.49065074701140393
+                0.012502557075915249,
+                0.32775753583903355,
+                0.37751646820673695
             ],
-            "hit": false
+            "hit": false,
+            "is_active": false,
+            "chain_parent": "2"
         }
     ],
     "frame_states": {
         "view": false,
-        "controller": true,
+        "controller": false,
         "groups": false,
         "ref_points": false,
         "edit": false,
         "ref_settings": true,
         "filter": false,
-        "camera": true,
+        "camera": false,
         "dim": true,
-        "debug": true,
+        "debug": false,
         "config": false
     },
     "home_position": {
         "name": "Home",
         "orientation": [
-            0.75,
-            0.65,
-            0.0,
-            0.0
+            -0.4410467021457038,
+            0.897050207821585,
+            -0.02120100916308221,
+            0.018145202785232472
         ]
     },
     "reference_point_groups": {
         "group_930fa6": {
             "name": "Testing",
             "point_ids": [
-                "d6776f",
-                "9d2613",
-                "ca0bd6"
+                "009a94",
+                "d7979a",
+                "92f765"
             ],
-            "hit_timestamps": {
-                "ca0bd6": 29029.453
-            },
+            "hit_timestamps": {},
             "action": {
                 "type": "Key Press",
                 "detail": "e"

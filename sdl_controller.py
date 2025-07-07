@@ -65,7 +65,9 @@ def poll_controller_data():
     for _ in range(num_calibration_samples):
         gyro_buffer = (ctypes.c_float * 3)()
         sdl2.SDL_GameControllerGetSensorData(controller, sdl2.SDL_SENSOR_GYRO, gyro_buffer, 3)
-        gyro_sum += np.array([gyro_buffer[0], gyro_buffer[1], gyro_buffer[2]])
+
+        # FIX #1: Remap axes during calibration
+        gyro_sum += np.array([gyro_buffer[0], -gyro_buffer[1], -gyro_buffer[2]])
         time.sleep(1.0 / sample_rate)
 
     initial_bias = gyro_sum / num_calibration_samples
@@ -112,8 +114,10 @@ def poll_controller_data():
         gyro_buffer = (ctypes.c_float * 3)()
         sdl2.SDL_GameControllerGetSensorData(controller, sdl2.SDL_SENSOR_ACCEL, accel_buffer, 3)
         sdl2.SDL_GameControllerGetSensorData(controller, sdl2.SDL_SENSOR_GYRO, gyro_buffer, 3)
-        raw_ax, raw_ay, raw_az = accel_buffer[0], accel_buffer[1], accel_buffer[2]
-        raw_gx, raw_gy, raw_gz = gyro_buffer[0], gyro_buffer[1], gyro_buffer[2]
+
+        # FIX #2: Remap axes for real-time data
+        raw_ax, raw_ay, raw_az = accel_buffer[0], -accel_buffer[1], -accel_buffer[2]
+        raw_gx, raw_gy, raw_gz = gyro_buffer[0], -gyro_buffer[1], -gyro_buffer[2]
 
         if global_state.recenter_event.is_set():
             madgwick_filter.quaternion = np.array(global_state.DEFAULT_HOME_ORIENTATION)
