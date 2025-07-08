@@ -1,6 +1,5 @@
 numpy
 PyOpenGL
 pynput
-playsound==1.2.2
 pysdl2
 pyopengltk

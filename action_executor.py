@@ -1,12 +1,15 @@
 from pynput.keyboard import Key, Controller as KeyboardController
 from pynput.mouse import Button, Controller as MouseController
-from playsound import playsound
 import global_state
 import os
 import threading
 import time
 import random
+import sys
 
+# Conditionally import winsound for Windows-specific sound playback
+if sys.platform == "win32":
+    import winsound
 
 class ActionExecutor:
     def __init__(self):
@@ -55,8 +58,13 @@ class ActionExecutor:
         # Play a sound notification in a background thread to avoid blocking
         if global_state.play_action_sound and global_state.action_sound_path:
             if os.path.exists(global_state.action_sound_path):
-                sound_thread = threading.Thread(target=lambda: playsound(global_state.action_sound_path), daemon=True)
-                sound_thread.start()
+                # Use winsound on Windows for better compatibility; it's built-in.
+                if sys.platform == "win32":
+                    sound_thread = threading.Thread(target=lambda: winsound.PlaySound(global_state.action_sound_path, winsound.SND_FILENAME), daemon=True)
+                    sound_thread.start()
+                else:
+                    # Provide a message for non-Windows users as playsound is removed.
+                    print(f"Warning: Sound playback is currently only supported on Windows.")
             else:
                 print(f"Warning: Sound file not found at '{global_state.action_sound_path}'")
 
