@@ -2,7 +2,7 @@
 
 This application captures the motion data from a Sony DualSense controller and maps it to custom keyboard and mouse actions. It features a real-time 3D visualizer to help you define motion-based controls. You can record specific controller positions, chain them into complex sequences, and bind these sequences to actions, creating powerful custom controls for games, applications, or accessibility tools.
 
-![3D Visualizer](./Image1.png)
+![3D Visualizer](./image1.png)
 
 ## Features
 
