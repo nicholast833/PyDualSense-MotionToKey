@@ -68,8 +68,16 @@ jobs:
             Copy-Item -Path "SDL2-2.30.2\lib\x64\SDL2.dll" -Destination "."
   
         - name: Build executable with PyInstaller
+          shell: pwsh
           run: |
-            pyinstaller main_app.spec
+            pyinstaller --name "DualSenseMotionToKey" `
+              --windowed `
+              --onefile `
+              --add-data "SDL2.dll;." `
+              --add-data "hidapi.dll;." `
+              --hidden-import "pynput.keyboard._win32" `
+              --hidden-import "pynput.mouse._win32" `
+              main_app.py
   
         - name: Create Release and Upload Asset
           uses: softprops/action-gh-release@v1
