@@ -24,11 +24,11 @@ def save_config(root, collapsible_frames, filepath=None):
 
     config_data = {
         'ui_settings': {}, 'reference_points': [], 'frame_states': {},
-        'home_position': {}, 'reference_point_groups': {}, 'action_sound_path': None
+        'home_position': {}, 'reference_point_groups': {}, 'action_sound_path': None,
+        'stats': {}  ## NEW ## - Added a dedicated section for stats
     }
 
     with global_state.controller_lock:
-        # FIX: Explicitly cast the 'hit' value to a standard bool for JSON serialization.
         points_to_save = []
         for p in global_state.reference_points:
             point_copy = p.copy()
@@ -43,8 +43,12 @@ def save_config(root, collapsible_frames, filepath=None):
         }
         config_data['action_sound_path'] = global_state.action_sound_path
 
+        ## NEW ## - Save stats from global_state
+        config_data['stats']['total_actions_completed'] = global_state.total_actions_completed
+        config_data['stats']['action_count_file_path'] = global_state.action_count_file_path
+
     for key, var in vars(global_state).items():
-        if isinstance(var, (tk.BooleanVar, tk.DoubleVar, tk.StringVar)) and key.endswith('_var'):
+        if isinstance(var, (tk.BooleanVar, tk.DoubleVar, tk.StringVar, tk.IntVar)) and key.endswith('_var'):
             try:
                 value = var.get()
                 if isinstance(var, tk.BooleanVar):
@@ -56,6 +60,17 @@ def save_config(root, collapsible_frames, filepath=None):
 
     for name, frame in collapsible_frames.items():
         config_data['frame_states'][name] = frame.is_collapsed()
+
+    ## NEW ## - Write to the separate action count file if a path is specified.
+    # This is done here to ensure it's always in sync with the saved config.
+    if global_state.action_count_file_path:
+        try:
+            with open(global_state.action_count_file_path, 'w') as f_count:
+                f_count.write(str(global_state.total_actions_completed))
+        except Exception as e:
+            # Log this error but don't stop the main config save.
+            print(f"Warning: Could not write to action count file '{global_state.action_count_file_path}': {e}")
+            log_error(e)
 
     try:
         with open(filepath, 'w') as f:
@@ -95,6 +110,11 @@ def load_config(root, ref_tree, group_tree, collapsible_frames, filepath=None, i
             gdata['hit_timestamps'] = {}
             global_state.reference_point_groups[gid] = gdata
 
+        ## NEW ## - Load stats. If the 'stats' key doesn't exist, use default values.
+        stats_data = config_data.get('stats', {})
+        global_state.total_actions_completed = stats_data.get('total_actions_completed', 0)
+        global_state.action_count_file_path = stats_data.get('action_count_file_path', "")
+
     ref_tree.delete(*ref_tree.get_children())
     for point in global_state.reference_points:
         values = (
@@ -113,10 +133,17 @@ def load_config(root, ref_tree, group_tree, collapsible_frames, filepath=None, i
     for key, value in ui_settings.items():
         if hasattr(global_state, key):
             try:
-                if not key.startswith('home_q_') and key != 'home_name_var':
+                # Don't overwrite home position details or stats from the general UI settings loop
+                if not key.startswith('home_q_') and key != 'home_name_var' and key not in ['total_actions_completed_var', 'action_count_file_path_var']:
                     getattr(global_state, key).set(value)
             except (tk.TclError, AttributeError):
                 pass
+
+    ## NEW ## - Update the UI with loaded stats after the main loop
+    if hasattr(global_state, 'total_actions_completed_var') and global_state.total_actions_completed_var:
+        global_state.total_actions_completed_var.set(global_state.total_actions_completed)
+    if hasattr(global_state, 'action_count_file_path_var') and global_state.action_count_file_path_var:
+        global_state.action_count_file_path_var.set(global_state.action_count_file_path)
 
     frame_states = config_data.get('frame_states', {})
     for name, frame in collapsible_frames.items():
